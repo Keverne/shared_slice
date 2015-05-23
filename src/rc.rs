@@ -4,6 +4,8 @@ use core::prelude::*;
 
 use core::{cmp, fmt, ops};
 use core::hash::{Hash, Hasher};
+use core::iter::Filter;
+use core::str::from_utf8;
 
 use alloc::rc::{Rc, Weak};
 use alloc::boxed::Box;
@@ -184,6 +186,111 @@ impl<T> WeakSlice<T> {
     }
 }
 
+pub type RcStr = RcSlice<u8>;
+pub type WeakStr = WeakSlice<u8>;
+
+pub struct Split<P> where P: FnMut(char) -> bool {
+    v: RcStr,
+    pred: P,
+    finished: bool
+}
+
+impl<P> Iterator for Split<P> where P: FnMut(char) -> bool {
+    type Item = RcStr;
+
+    #[inline]
+    fn next(&mut self) -> Option<RcStr> {
+        if self.finished { return None; }
+
+        let idx =  {
+            let pred = &mut self.pred;
+            from_utf8(&*self.v).unwrap().chars().position(|x| pred(x))
+        };
+        match idx {
+            None => self.finish(),
+            Some(idx) => {
+                let ret = Some(self.v.clone().slice_to(idx));
+                self.v = self.v.clone().slice_from(idx + 1);
+                ret
+            }
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        if self.finished {
+            (0, Some(0))
+        } else {
+            (1, Some(self.v.len() + 1))
+        }
+    }
+}
+
+pub struct SplitWhitespace {
+    inner: Filter<Split<fn(char) -> bool>, fn(&RcStr) -> bool>,
+}
+
+impl Iterator for SplitWhitespace {
+    type Item = RcStr;
+
+    fn next(&mut self) -> Option<RcStr> { self.inner.next() }
+}
+
+/// An internal abstraction over the splitting iterators, so that
+/// splitn, splitn_mut etc can be implemented once.
+trait SplitIter: Iterator {
+    /// Mark the underlying iterator as complete, extracting the remaining
+    /// portion of the slice.
+    fn finish(&mut self) -> Option<Self::Item>;
+}
+
+impl<P> SplitIter for Split<P> where P: FnMut(char) -> bool {
+    #[inline]
+    fn finish(&mut self) -> Option<RcStr> {
+        if self.finished { None } else { self.finished = true; Some(self.v.clone()) }
+    }
+}
+
+impl RcStr {
+    pub fn split_whitespace(self) -> SplitWhitespace {
+        const WHITESPACE_TABLE: &'static [(char, char)] = &[
+            ('\u{9}', '\u{d}'), ('\u{20}', '\u{20}'), ('\u{85}', '\u{85}'), ('\u{a0}', '\u{a0}'),
+            ('\u{1680}', '\u{1680}'), ('\u{2000}', '\u{200a}'), ('\u{2028}', '\u{2029}'), 
+            ('\u{202f}', '\u{202f}'), ('\u{205f}', '\u{205f}'), ('\u{3000}', '\u{3000}')
+        ];
+
+        fn in_whitespace_table(c: char) -> bool {
+            use core::cmp::Ordering::{Equal, Less, Greater};
+            use core::slice::SliceExt;
+            WHITESPACE_TABLE.binary_search_by(|&(lo,hi)| {
+                if lo <= c && c <= hi { Equal }
+                else if hi < c { Less }
+                else { Greater }
+            }).is_ok()
+        }
+
+        fn is_whitespace(c: char) -> bool {
+            match c {
+                ' ' | '\x09' ... '\x0d' => true,
+                c if c > '\x7f' => in_whitespace_table(c),
+                _ => false
+            }
+        }
+
+        fn is_not_empty(s: &RcStr) -> bool {
+            !s.is_empty()
+        }
+
+        SplitWhitespace {
+            inner: Split {
+                v: self,
+                pred: is_whitespace as fn(char) -> bool,
+                finished: false,
+            }.filter(is_not_empty as fn(&RcStr) -> bool)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
@@ -329,5 +436,14 @@ mod tests {
         let part = whole.slice(1, 2);
         drop(part);
         assert_eq!(drop_flag.get(), 2);
+    }
+
+    #[test]
+    fn test_split_whitespace() {
+        // bytes of "Hello world"
+        let s = RcSlice::new(Box::new([72, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]));
+        let mut it = s.split_whitespace();
+        assert_eq!(&*it.next().unwrap(), "Hello".as_bytes());
+        assert_eq!(&*it.next().unwrap(), "world".as_bytes());
     }
 }
