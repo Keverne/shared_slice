@@ -1,7 +1,5 @@
 //! A thread-safe reference-counted slice type.
 
-use core::prelude::*;
-
 use core::{cmp, fmt, ops};
 use core::hash::{Hash, Hasher};
 
@@ -75,7 +73,7 @@ impl<T> ArcSlice<T> {
     pub fn downgrade(&self) -> WeakSlice<T> {
         WeakSlice {
             data: self.data,
-            counts: self.counts.downgrade()
+            counts: Arc::downgrade(&self.counts)
         }
     }
 

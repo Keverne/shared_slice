@@ -1,7 +1,5 @@
 //! A thread-local reference-counted slice type.
 
-use core::prelude::*;
-
 use core::{cmp, fmt, ops};
 use core::hash::{Hash, Hasher};
 use core::iter::Filter;
@@ -72,7 +70,7 @@ impl<T> RcSlice<T> {
     pub fn downgrade(&self) -> WeakSlice<T> {
         WeakSlice {
             data: self.data,
-            counts: self.counts.downgrade()
+            counts: Rc::downgrade(&self.counts)
         }
     }
 

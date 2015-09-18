@@ -1,4 +1,4 @@
-#![feature(no_std)]
+#![feature(no_std, core_slice_ext, core_str_ext)]
 #![cfg_attr(not(test), no_std)]
 
 //! Thread-local and thread-safe shared slice types, like `&[T]` but
@@ -73,10 +73,8 @@
 //! is likely that one will be able to use conventional borrowed
 //! `&[T]` slices directly.)
 
-#![feature(core, alloc)]
-
+#![feature(alloc)]
 extern crate alloc;
-extern crate core;
 
 pub mod rc;
 pub mod arc;
