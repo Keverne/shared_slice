@@ -3,7 +3,7 @@
 use core::{cmp, fmt, ops};
 use core::hash::{Hash, Hasher};
 
-use alloc::arc::{Arc, Weak};
+use alloc::sync::{Arc, Weak};
 use alloc::boxed::Box;
 
 

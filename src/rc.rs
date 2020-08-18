@@ -6,8 +6,7 @@ use core::iter::Filter;
 use core::str::from_utf8;
 
 use alloc::rc::{Rc, Weak};
-use alloc::boxed::Box;
-
+use alloc::prelude::v1::Box;
 
 /// A reference-counted slice type.
 ///
@@ -259,7 +258,6 @@ impl RcStr {
 
         fn in_whitespace_table(c: char) -> bool {
             use core::cmp::Ordering::{Equal, Less, Greater};
-            use core::slice::SliceExt;
             WHITESPACE_TABLE.binary_search_by(|&(lo,hi)| {
                 if lo <= c && c <= hi { Equal }
                 else if hi < c { Less }
